@@ -27,6 +27,76 @@ exit:
     clr::DestroyCommonLanguageRuntime(&cc, pAppDomain);
 }
 
+void ExecutePowerShellCommand(LPWSTR pwszCommand) {
+     /**
+     * Executes a PowerShell command using the .NET Common Language Runtime (CLR).
+     *
+     * This function initializes the CLR, creates a PowerShell runspace, adds the specified
+     * command (via Invoke-Expression), and executes it. The results and errors are printed
+     * to the console, and all resources are cleaned up before exiting.
+     *
+     * @param pwszCommand A null-terminated Unicode string containing the PowerShell command to execute.
+     *                    Example: L"Get-Process | Where-Object {$_.CPU -gt 100}"
+     *
+     * @remarks
+     * - Requires the CLR hosting API and PowerShell COM interop functions (e.g., PowerShellCreate).
+     * - Uses Invoke-Expression, which can be a security risk if executing untrusted input.
+     * - Allocates COM objects and CLR resources that are cleaned up in the exit label.
+     *
+     * @note
+     * The PatchAllTheThings() function is called to apply any necessary runtime patches
+     * (e.g., bypassing security features). This is a placeholder for environment-specific logic.
+     *
+     * @example
+     * ExecutePowerShellCommand(L"Get-Date");
+     * ExecutePowerShellCommand(L"Import-Module ActiveDirectory; Get-ADUser -Filter *");
+     */
+    mscorlib::_AppDomain* pAppDomain = NULL;
+    CLR_CONTEXT cc = { 0 };
+    VARIANT vtPowerShell = { 0 };
+    VARIANT vtInvokeResult = { 0 };
+    BOOL bHadErrors = FALSE;
+    VARIANT vtCommandArg = { 0 };
+
+    if (!clr::InitializeCommonLanguageRuntime(&cc, &pAppDomain))
+        goto exit;
+
+    if (!PowerShellCreate(pAppDomain, &vtPowerShell))
+        goto exit;
+
+    if (!PowerShellAddCommand(pAppDomain, vtPowerShell, L"Invoke-Expression"))
+        goto exit;
+    
+    InitVariantFromString(pwszCommand, &vtCommandArg);
+    if (!PowerShellAddArgument(pAppDomain, vtPowerShell, vtCommandArg))
+        goto exit;
+    VariantClear(&vtCommandArg);
+    PatchAllTheThings(pAppDomain);
+
+    if (PowerShellInvoke(pAppDomain, vtPowerShell, &vtInvokeResult))
+    {
+        PrintPowerShellInvokeResult(pAppDomain, vtInvokeResult);
+        PrintPowerShellInvokeInformation(pAppDomain, vtPowerShell);
+    }
+
+    if (!PowerShellHadErrors(pAppDomain, vtPowerShell, &bHadErrors))
+        goto exit;
+
+    if (bHadErrors)
+    {
+        PrintPowerShellInvokeErrors(pAppDomain, vtPowerShell);
+    }
+
+exit:
+    if (pAppDomain && vtPowerShell.punkVal) PowerShellDispose(pAppDomain, vtPowerShell);
+    VariantClear(&vtInvokeResult);
+    VariantClear(&vtPowerShell);
+    clr::DestroyCommonLanguageRuntime(&cc, pAppDomain);
+
+    return;
+    
+}
+
 void ExecutePowerShellScript(LPWSTR pwszScript)
 {
     mscorlib::_AppDomain* pAppDomain = NULL;
@@ -356,6 +426,63 @@ exit:
     if (pPowerShellType) pPowerShellType->Release();
 
     VariantClear(&vtCommand);
+    VariantClear(&vtResult);
+
+    return bResult;
+}
+
+BOOL PowerShellAddArgument(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, VARIANT vtArgument)
+{
+    /**
+     * Adds an argument to the current PowerShell command via .NET reflection.
+     *
+     * @param pAppDomain .NET application domain hosting PowerShell.
+     * @param vtPowerShellInstance PowerShell COM object instance.
+     * @param vtArgument Variant containing the argument value.
+     *
+     * @returns TRUE on success, FALSE on failure.
+     *
+     * @remarks
+     * Uses System.Management.Automation.PowerShell.AddArgument().
+     * Cleans up COM resources internally.
+     *
+     * @example
+     * VARIANT vtPath;
+     * InitVariantFromString(L"Write-Host 'Powershell';", &vtPath);
+     * PowerShellAddArgument(pAppDomain, vtPowerShell, vtPath);
+     * VariantClear(&vtPath);
+     */
+    BOOL bResult = FALSE;
+    LONG lArgumentIndex;
+    VARIANT vtResult = { 0 };
+    SAFEARRAY* pAddArgumentArguments = NULL;
+    mscorlib::_Type* pPowerShellType = NULL;
+    mscorlib::_MethodInfo* pAddArgumentMethodInfo = NULL;
+
+    // 获取 PowerShell 类型
+    if (!clr::GetType(pAppDomain, ASSEMBLY_NAME_SYSTEM_MANAGEMENT_AUTOMATION, L"System.Management.Automation.PowerShell", &pPowerShellType))
+        goto exit;
+
+    // 获取 AddArgument 方法信息（参数数量为1）
+    if (!clr::GetMethod(pPowerShellType, static_cast<mscorlib::BindingFlags>(BINDING_FLAGS_PUBLIC_INSTANCE), L"AddArgument", 1, &pAddArgumentMethodInfo))
+        goto exit;
+
+    // 构造 AddArgument 的参数数组
+    pAddArgumentArguments = SafeArrayCreateVector(VT_VARIANT, 0, 1);
+    lArgumentIndex = 0;
+    SafeArrayPutElement(pAddArgumentArguments, &lArgumentIndex, &vtArgument);
+
+    // 调用 AddArgument 方法
+    if (!clr::InvokeMethod(pAddArgumentMethodInfo, vtPowerShellInstance, pAddArgumentArguments, &vtResult))
+        goto exit;
+
+    bResult = TRUE;
+
+exit:
+    if (pAddArgumentArguments) SafeArrayDestroy(pAddArgumentArguments);
+    if (pAddArgumentMethodInfo) pAddArgumentMethodInfo->Release();
+    if (pPowerShellType) pPowerShellType->Release();
+
     VariantClear(&vtResult);
 
     return bResult;

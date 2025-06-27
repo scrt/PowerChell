@@ -6,6 +6,7 @@
 typedef struct _POWERCHELL_OPTIONS
 {
     LPWSTR Script;
+    LPWSTR Command; // Add a command-line field.
 } POWERCHELL_OPTIONS, *PPOWERCHELL_OPTIONS;
 
 void PowerChellMain();
@@ -69,11 +70,15 @@ void PowerChellMain()
     if (pOptions.Script != NULL)
     {
         ExecutePowerShellScript(pOptions.Script);
+        return;
     }
-    else
-    {
-        CreatePowerShellConsole();
+
+    if (pOptions.Command != NULL) {
+        ExecutePowerShellCommand(pOptions.Command);
+        return;
     }
+    CreatePowerShellConsole();
+    
 }
 
 BOOL ParseCommandLine(PPOWERCHELL_OPTIONS pOptions)
@@ -89,12 +94,22 @@ BOOL ParseCommandLine(PPOWERCHELL_OPTIONS pOptions)
 
     for (int i = 0; i < iArgc; i++)
     {
-        if (_wcsicmp(ppwszArgv[i], L"-c") == 0)
+        // Execute PowerShell from a file.
+        if (_wcsicmp(ppwszArgv[i], L"-f") == 0)
         {
             i += 1;
             if (i < iArgc && ppwszArgv[i] != NULL)
             {
                 pOptions->Script = ppwszArgv[i];
+            }
+        }
+        // Execute PowerShell from the command line.
+        if (_wcsicmp(ppwszArgv[i], L"-c") == 0)
+        {
+            i += 1;
+            if (i < iArgc && ppwszArgv[i] != NULL)
+            {
+                pOptions->Command = ppwszArgv[i];
             }
         }
     }

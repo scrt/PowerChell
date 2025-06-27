@@ -3,7 +3,7 @@
 
 void CreatePowerShellConsole();
 void ExecutePowerShellScript(LPWSTR pwszScript);
-
+void ExecutePowerShellCommand(LPWSTR pwszCommand);
 BOOL DisablePowerShellEtwProvider(mscorlib::_AppDomain* pAppDomain);
 void PatchAllTheThings(mscorlib::_AppDomain* pAppDomain);
 
@@ -14,6 +14,7 @@ BOOL PowerShellCreate(mscorlib::_AppDomain* pAppDomain, VARIANT* pvtPowerShellIn
 BOOL PowerShellDispose(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance);
 BOOL PowerShellAddScript(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, LPWSTR pwszScript);
 BOOL PowerShellAddCommand(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, LPCWSTR pwszCommand);
+BOOL PowerShellAddArgument(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, VARIANT vtArgument);
 BOOL PowerShellInvoke(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, VARIANT* pvtInvokeResult);
 BOOL PowerShellGetStream(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, LPCWSTR pwszStreamName, VARIANT* pvtStream);
 BOOL PowerShellHadErrors(mscorlib::_AppDomain* pAppDomain, VARIANT vtPowerShellInstance, PBOOL pbHadErrors);
